@@ -1,0 +1,11 @@
+# Ignore VS Code project settings
+.vscode/
+
+# Ignore compiled binaries
+client
+server
+
+# (Optional) Add other build artifacts you might create later
+*.o
+*.out
+*.exe
