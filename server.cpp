@@ -29,8 +29,26 @@ static int32_t read_full(int connfd, char *rbuf, int length) {
 }
 
 static int32_t write_all(int connfd, char *rbuf, int length) {
+
+    // write everything from buff into the connfd byte stream
+
+    while (length > 0 ) {
+
+        int32_t rv = send(connfd, rbuf, length, 0);
+
+        if (rv <= 0) {
+            return -1; // error or EOF
+        }
+
+        assert((size_t) rv <= length);
+
+        length -= (size_t) rv;
+        rbuf += rv;
+    }
+
     return 0;
 }
+
 int32_t write_all(int connfd, char *rbuf, int length) {
     return 0;
 }
