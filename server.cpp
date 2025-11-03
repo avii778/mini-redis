@@ -6,11 +6,79 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <assert.h>
+
+const size_t K_MAX_MSG = 4096;
+
+static int32_t read_full(int connfd, char *rbuf, int length) {
+
+    while (length > 0) {
+        int32_t rv = recv(connfd, rbuf, length , 0);
+
+        if (rv <= 0) {
+            return -1; // error or EOF
+        }
+
+        assert((size_t) rv <= length);
+
+        length -= (size_t) rv;
+        rbuf += (size_t) rv;
+    }
+
+    return 0;
+}
+
+static int32_t write_all(int connfd, char *rbuf, int length) {
+    return 0;
+}
+int32_t write_all(int connfd, char *rbuf, int length) {
+    return 0;
+}
+
+void msg(const char* message) {
+
+}
 
 void die(const char* message) { 
 
     perror(message);
     exit(1);
+
+}
+
+int32_t one_request(int connfd) {
+    
+    char rbuf[4 + K_MAX_MSG]; // 4 bytes for length header
+
+    int errno = 0;
+
+    int32_t err = read_full(connfd, rbuf, 4);
+
+    if (err) {
+        msg(errno == 0 ? "EOF" : "read() error");
+        return err;
+    }
+
+    uint32_t length = 0;
+    memcpy(&length, rbuf, 4); 
+
+    if (length > K_MAX_MSG) {
+        msg("too long");
+        return -1;
+    }
+
+    // actually read the request
+    err = read_full(connfd, &rbuf[4], length);
+
+
+    if (err) {
+        msg("read() error");
+        return err;
+    }
+
+
+
+
 
 }
 
@@ -67,8 +135,17 @@ int main() {
             continue;   // error
         }
 
-        do_something(connfd);
+        while (true) {
 
+            int32_t err  = one_request(connfd);
+
+            if (err) {
+                break; // if err != 0 then something happened 
+            }
+
+        }
+
+        close(connfd);
 
     }
 
