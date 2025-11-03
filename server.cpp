@@ -7,13 +7,14 @@
 #include <string.h>
 #include <unistd.h>
 #include <assert.h>
+#include <errno.h>
 
 const size_t K_MAX_MSG = 4096;
 
 static int32_t read_full(int connfd, char *rbuf, int length) {
 
     while (length > 0) {
-        int32_t rv = recv(connfd, rbuf, length , 0);
+        ssize_t rv = recv(connfd, rbuf, length , 0);
 
         if (rv <= 0) {
             return -1; // error or EOF
@@ -34,7 +35,7 @@ static int32_t write_all(int connfd, char *rbuf, int length) {
 
     while (length > 0 ) {
 
-        int32_t rv = send(connfd, rbuf, length, 0);
+        ssize_t rv = send(connfd, rbuf, length, 0);
 
         if (rv <= 0) {
             return -1; // error or EOF
@@ -49,12 +50,9 @@ static int32_t write_all(int connfd, char *rbuf, int length) {
     return 0;
 }
 
-int32_t write_all(int connfd, char *rbuf, int length) {
-    return 0;
-}
 
 void msg(const char* message) {
-
+    perror(message);
 }
 
 void die(const char* message) { 
@@ -68,17 +66,18 @@ int32_t one_request(int connfd) {
     
     char rbuf[4 + K_MAX_MSG]; // 4 bytes for length header
 
-    int errno = 0;
+    errno = 0;
 
-    int32_t err = read_full(connfd, rbuf, 4);
+    int32_t err = read_full(connfd, rbuf, 4); // parse length header
 
     if (err) {
         msg(errno == 0 ? "EOF" : "read() error");
         return err;
     }
 
-    uint32_t length = 0;
-    memcpy(&length, rbuf, 4); 
+    uint32_t be = 0;
+    memcpy(&be, rbuf, 4); 
+    uint32_t length = ntohl(be);
 
     if (length > K_MAX_MSG) {
         msg("too long");
@@ -91,12 +90,20 @@ int32_t one_request(int connfd) {
 
     if (err) {
         msg("read() error");
-        return err;
+        return -1;
     }
 
+    // respond using the same length protocol
 
+    printf("Client says %.*s\n: ", length, &rbuf[4]);
 
-
+    char reply[] = "world";
+    char wbuf[4 + sizeof(reply)];
+    uint32_t len = (uint32_t)strlen(reply);
+    uint32_t blen = htonl(len);
+    memcpy(wbuf, &blen, 4);
+    memcpy(&wbuf[4], reply, len);
+    return write_all(connfd, wbuf, 4 + len);
 
 }
 
