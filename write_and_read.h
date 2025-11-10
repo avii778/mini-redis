@@ -38,4 +38,6 @@ int32_t write_all(int connfd, char *rbuf, int length);
  */
 void msg(const char *message);
 
+void die(const char* message);
+
 #endif // NET_UTILS_H

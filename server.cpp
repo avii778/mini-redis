@@ -9,14 +9,42 @@
 #include <assert.h>
 #include <errno.h>
 #include "write_and_read.h"
+#include <vector>
+#include <poll.h>
 
 const size_t K_MAX_MSG = 4096;
 
-void die(const char* message) { 
+struct Conn {
+    int fd = -1;
 
-    perror(message);
-    exit(1);
+    bool want_read = false;
+    bool want_write = false;
+    bool want_close = false;
 
+    std::vector<uint8_t> incoming;  // data to be parsed by the application
+    std::vector<uint8_t> outgoing;
+};
+
+Conn* handle_accept(int fd) {
+
+    int rv = accept(fd, nullptr, nullptr); // i don't care where this request comes from
+
+    if (rv < 0) {
+        die("Lol fuck you");
+    }
+    Conn* conn = new Conn();
+    conn->fd = rv;
+    conn->want_read = true;
+
+    return conn;
+}
+
+void handle_read(Conn* conn) {
+    return;
+}
+
+void handle_write(Conn* conn) {
+    return;
 }
 
 int32_t one_request(int connfd) {
@@ -61,32 +89,6 @@ int32_t one_request(int connfd) {
     memcpy(wbuf, &blen, 4);
     memcpy(&wbuf[4], reply, len);
     return write_all(connfd, wbuf, 4 + len);
-
-}
-
-void do_something(const int connfd) {
-
-    char rbuf[64] = {};
-    ssize_t rv = recv(connfd, rbuf, sizeof(rbuf) - 1, 0);
-
-    if (rv <= 0) {
-        die("recv() error");
-        return;
-    }
-
-    printf("Client says %s\n", rbuf);
-
-    char wbuf[] = "world";
-
-    rv = send(connfd, wbuf, strlen(wbuf), 0); 
-
-    if (rv == -1){
-        die("Send() error");
-    } 
-
-    close(connfd);
-
-    return;
 }
 
 int main() {
@@ -108,29 +110,76 @@ int main() {
 
     while (true) {
 
-        struct sockaddr_in client_addr = {};
-        socklen_t addr_len = sizeof(client_addr);
+        // main event loop will go here
 
-        int connfd = accept(fd, (struct sockaddr *)&client_addr, &addr_len);
+        std::vector<Conn *> fd2conn; // vector filled with connections + states
+        std::vector<struct pollfd> poll_args; //should eventually transition to epoll
 
-        if (connfd < 0) {
-            continue;   // error
-        }
+        while (true){ 
 
-        while (true) {
+            poll_args.clear();
 
-            int32_t err  = one_request(connfd);
+            struct pollfd pfd = {fd, POLLIN, 0}; 
+            poll_args.push_back(pfd);
+                
+            // prepare tha polls
+            for (Conn* conn : fd2conn) {
 
-            if (err) {
-                break; // if err != 0 then something happened 
+                if (!conn) { // checking nullness
+                    continue;
+                }
+
+                struct pollfd pfd = {conn->fd, POLLERR, 0};
+
+                if (conn->want_read) {
+                    pfd.events |= POLLIN;
+                }
+
+                if (conn->want_write) {
+                    pfd.events |= POLLOUT;                    
+                }
+
+                poll_args.push_back(pfd);
+
             }
 
+            int rv = poll(poll_args.data(), (nfds_t)poll_args.size(), -1); // kinda not great - could in theory block forever
+
+            if (rv < 0 && errno == EINTR) {
+                continue;
+            }
+            
+            if (rv < 0) {
+                die("poll");
+            }
+
+            if (poll_args[0].revents) {
+
+                if (Conn* connfd = handle_accept(fd)) {
+                    
+                    if (connfd->fd > fd2conn.size()){
+                        fd2conn.resize(connfd->fd + 1);
+                    }
+
+                    fd2conn[connfd->fd] = connfd;
+                }
+
+                for (size_t i = 1; i < poll_args.size(); ++i) { // skip the first one
+
+                    int32_t ready = poll_args[i].fd;
+                    Conn* conn = fd2conn[ready];
+
+                    if (conn->want_read) {
+                        handle_read(conn);
+                    }
+                    
+                    if (conn->want_write) {
+                        handle_write(conn);
+                    }
+                } 
+            }
         }
-
-        close(connfd);
-
     }
-
 
     return 0;
 

@@ -51,3 +51,10 @@ int32_t write_all(int connfd, char *rbuf, int length) {
 void msg(const char* message) {
     perror(message);
 }
+
+void die(const char* message) { 
+
+    perror(message);
+    exit(1);
+
+}
