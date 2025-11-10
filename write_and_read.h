@@ -40,4 +40,7 @@ void msg(const char *message);
 
 void die(const char* message);
 
+static void fd_set_nb(int fd);
+
+static bool try_one_request(Conn *conn);
 #endif // NET_UTILS_H

@@ -11,35 +11,43 @@
 #include "write_and_read.h"
 #include <vector>
 #include <poll.h>
+#include "conn.h"
 
 const size_t K_MAX_MSG = 4096;
 
-struct Conn {
-    int fd = -1;
-
-    bool want_read = false;
-    bool want_write = false;
-    bool want_close = false;
-
-    std::vector<uint8_t> incoming;  // data to be parsed by the application
-    std::vector<uint8_t> outgoing;
-};
-
 Conn* handle_accept(int fd) {
 
-    int rv = accept(fd, nullptr, nullptr); // i don't care where this request comes from
+    int connfd = accept(fd, nullptr, nullptr);
 
-    if (rv < 0) {
-        die("Lol fuck you");
+    if (connfd < 0) {
+        return NULL;
     }
-    Conn* conn = new Conn();
-    conn->fd = rv;
-    conn->want_read = true;
 
+    // set it to be non blocking
+    fd_set_nb(connfd);
+    Conn* conn = new Conn();
+    conn->fd = connfd;
+    conn->want_read = true;
     return conn;
 }
 
 void handle_read(Conn* conn) {
+    // do a non-blocking read
+    uint8_t buf[64 * 1024];
+    size_t rv = read(conn->fd, buf, sizeof(buf));
+
+    if (rv <= 0) {  // handle IO error (rv < 0) or EOF (rv == 0)
+        conn->want_close = true;
+        return;
+    }
+    
+    //append this onto the incoming buff
+    buf_append(conn->incoming, buf, (size_t) rv);
+
+    // 3. Try to parse the accumulated buffer.
+    // 4. Process the parsed message.
+    // 5. Remove the message from `Conn::incoming`
+    try_one_request(conn);
     return;
 }
 
@@ -166,15 +174,22 @@ int main() {
 
                 for (size_t i = 1; i < poll_args.size(); ++i) { // skip the first one
 
-                    int32_t ready = poll_args[i].fd;
-                    Conn* conn = fd2conn[ready];
+                    int32_t ready = poll_args[i].revents; //did something happen?
+                    Conn* conn = fd2conn[poll_args[i].fd];
 
-                    if (conn->want_read) {
+                    //bitwise masks
+                    if (POLLIN & ready) {
                         handle_read(conn);
                     }
                     
-                    if (conn->want_write) {
+                    if (POLLOUT & ready) {
                         handle_write(conn);
+                    }
+
+                    if ((ready & POLLERR) || conn->want_close) {
+                        (void)close(conn->fd);
+                        fd2conn[conn->fd] = NULL;
+                        delete conn;
                     }
                 } 
             }
