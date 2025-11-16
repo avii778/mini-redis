@@ -34,7 +34,7 @@ Conn* handle_accept(int fd) {
 void handle_read(Conn* conn) {
     // do a non-blocking read
     uint8_t buf[64 * 1024];
-    size_t rv = read(conn->fd, buf, sizeof(buf));
+    ssize_t rv = read(conn->fd, buf, sizeof(buf));
 
     if (rv <= 0) {  // handle IO error (rv < 0) or EOF (rv == 0)
         conn->want_close = true;
@@ -48,10 +48,32 @@ void handle_read(Conn* conn) {
     // 4. Process the parsed message.
     // 5. Remove the message from `Conn::incoming`
     try_one_request(conn);
+
+    if (conn->outgoing.size() > 0) {
+        conn->want_read = false;
+        conn->want_write = true;
+    }
+
     return;
 }
 
 void handle_write(Conn* conn) {
+
+    assert(conn->outgoing.size() > 0);
+    ssize_t rv = send(conn->fd, conn->outgoing.data(), conn->outgoing.size(), 0);
+
+    if (rv <= 0) {
+        conn->want_close = true;
+        return;
+    }
+
+    buf_consume(conn->outgoing, (size_t) rv);
+
+    if (conn->outgoing.size() == 0) {
+        conn->want_write = false;
+        conn->want_read = true;
+    }
+
     return;
 }
 
@@ -121,7 +143,7 @@ int main() {
         // main event loop will go here
 
         std::vector<Conn *> fd2conn; // vector filled with connections + states
-        std::vector<struct pollfd> poll_args; //should eventually transition to epoll
+        std::vector<struct pollfd> poll_args; // should eventually transition to epoll
 
         while (true){ 
 

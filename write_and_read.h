@@ -43,4 +43,9 @@ void die(const char* message);
 static void fd_set_nb(int fd);
 
 static bool try_one_request(Conn *conn);
+
+void buf_append(std::vector<uint8_t> &buf, const uint8_t *data, size_t len);
+
+void buf_consume(std::vector<uint8_t> &buf, size_t len);
+
 #endif // NET_UTILS_H
