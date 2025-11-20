@@ -2,6 +2,8 @@
 #define NET_UTILS_H
 
 #include <stdint.h>  // for int32_t
+#include <vector>
+#include "conn.h"
 
 /**
  * @brief Reads exactly 'length' bytes from a connected socket.
@@ -40,9 +42,9 @@ void msg(const char *message);
 
 void die(const char* message);
 
-static void fd_set_nb(int fd);
+void fd_set_nb(int fd);
 
-static bool try_one_request(Conn *conn);
+bool try_one_request(Conn *conn);
 
 void buf_append(std::vector<uint8_t> &buf, const uint8_t *data, size_t len);
 

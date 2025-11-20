@@ -64,7 +64,7 @@ void die(const char* message) {
 
 }
 
-static void fd_set_nb(int fd) {
+void fd_set_nb(int fd) {
     fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
 }
 
@@ -76,7 +76,8 @@ void buf_consume(std::vector<uint8_t> &buf, size_t len) {
     buf.erase(buf.begin(), buf.begin() + len);
 }
 
-static bool try_one_request(Conn *conn) {
+// this doesn't work for pipelined requested
+bool try_one_request(Conn *conn) {
     /**
      * Tries to parse the one request within conn incoming.
      * @returns true if sucessful, false if non-successful
@@ -93,7 +94,8 @@ static bool try_one_request(Conn *conn) {
         conn->want_close = true; // fairly idiomatic what i'm doing here
         return false;
     }
-
+    
+    // basically just responding with what they sent
     const uint8_t *request = &conn->incoming[4];
     // otherwise handle the message
     buf_append(conn->outgoing, (const uint8_t *)&length, 4);

@@ -47,7 +47,9 @@ void handle_read(Conn* conn) {
     // 3. Try to parse the accumulated buffer.
     // 4. Process the parsed message.
     // 5. Remove the message from `Conn::incoming`
-    try_one_request(conn);
+    while(try_one_request(conn)){
+        
+    }
 
     if (conn->outgoing.size() > 0) {
         conn->want_read = false;
@@ -75,50 +77,6 @@ void handle_write(Conn* conn) {
     }
 
     return;
-}
-
-int32_t one_request(int connfd) {
-    
-    char rbuf[4 + K_MAX_MSG]; // 4 bytes for length header
-
-    errno = 0;
-
-    int32_t err = read_full(connfd, rbuf, 4); // parse length header
-
-    if (err) {
-        msg(errno == 0 ? "EOF" : "read() error");
-        return err;
-    }
-
-    uint32_t be = 0;
-    memcpy(&be, rbuf, 4); 
-    uint32_t length = ntohl(be);
-
-    if (length > K_MAX_MSG) {
-        msg("too long");
-        return -1;
-    }
-
-    // actually read the request
-    err = read_full(connfd, &rbuf[4], length);
-
-
-    if (err) {
-        msg("read() error");
-        return -1;
-    }
-
-    // respond using the same length protocol
-
-    printf("Client says %.*s\n: ", length, &rbuf[4]);
-
-    char reply[] = "world";
-    char wbuf[4 + sizeof(reply)];
-    uint32_t len = (uint32_t)strlen(reply);
-    uint32_t blen = htonl(len);
-    memcpy(wbuf, &blen, 4);
-    memcpy(&wbuf[4], reply, len);
-    return write_all(connfd, wbuf, 4 + len);
 }
 
 int main() {
