@@ -151,28 +151,27 @@ int main() {
 
                     fd2conn[connfd->fd] = connfd;
                 }
-
-                for (size_t i = 1; i < poll_args.size(); ++i) { // skip the first one
-
-                    int32_t ready = poll_args[i].revents; //did something happen?
-                    Conn* conn = fd2conn[poll_args[i].fd];
-
-                    //bitwise masks
-                    if (POLLIN & ready) {
-                        handle_read(conn);
-                    }
-                    
-                    if (POLLOUT & ready) {
-                        handle_write(conn);
-                    }
-
-                    if ((ready & POLLERR) || conn->want_close) {
-                        (void)close(conn->fd);
-                        fd2conn[conn->fd] = NULL;
-                        delete conn;
-                    }
-                } 
             }
+
+            for (size_t i = 1; i < poll_args.size(); ++i) { // skip the first one
+
+                int32_t ready = poll_args[i].revents; //did something happen?
+                Conn* conn = fd2conn[poll_args[i].fd];
+                    //bitwise masks
+                if (POLLIN & ready) {
+                    handle_read(conn);
+                }
+                    
+                if (POLLOUT & ready) {
+                    handle_write(conn);
+                }
+
+                if ((ready & POLLERR) || conn->want_close) {                        
+                    (void)close(conn->fd);
+                    fd2conn[conn->fd] = NULL;
+                    delete conn;
+                }
+            } 
         }
     }
 

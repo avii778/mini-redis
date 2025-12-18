@@ -76,7 +76,6 @@ void buf_consume(std::vector<uint8_t> &buf, size_t len) {
     buf.erase(buf.begin(), buf.begin() + len);
 }
 
-// this doesn't work for pipelined requested
 bool try_one_request(Conn *conn) {
     /**
      * Tries to parse the one request within conn incoming.
@@ -87,14 +86,17 @@ bool try_one_request(Conn *conn) {
         return false;
     }
     
-    uint32_t length = 0;
-    memcpy(&length, conn->incoming.data(), 4);
+    uint32_t be_len = 0;
+    memcpy(&be_len, conn->incoming.data(), 4);
+    uint32_t length = ntohl(be_len);
 
     if (length > K_MAX_MSG) {
         conn->want_close = true; // fairly idiomatic what i'm doing here
         return false;
     }
-    
+
+    if (conn->incoming.size() < 4 + length) return false;
+
     // basically just responding with what they sent
     const uint8_t *request = &conn->incoming[4];
     // otherwise handle the message

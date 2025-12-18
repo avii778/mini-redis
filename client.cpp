@@ -43,7 +43,6 @@ static int32_t read_res(int fd) {
 
     uint32_t length = 0;
     memcpy(&length, rbuf, 4);
-    length = ntohl(length); // network to host byte order
     if (length > K_MAX_MSG) {
         msg("too long");
         return -1;
