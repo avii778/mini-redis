@@ -76,7 +76,7 @@ int main() {
     if (rv) {die("Connect error");};
 
     std::vector<std::string> query_list = {
-        "hello", "world", "pipelining", "test"
+        "hello", "world", "std::string(k_max_msg, 'z')", "pipelining", "test", 
     };
 
     for (const std::string &s : query_list) {

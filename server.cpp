@@ -15,6 +15,8 @@
 
 const size_t K_MAX_MSG = 4096;
 
+void handle_write(Conn* conn);
+
 Conn* handle_accept(int fd) {
 
     int connfd = accept(fd, nullptr, nullptr);
@@ -54,6 +56,8 @@ void handle_read(Conn* conn) {
     if (conn->outgoing.size() > 0) {
         conn->want_read = false;
         conn->want_write = true;
+
+        handle_write(conn);
     }
 
     return;
@@ -69,11 +73,17 @@ void handle_write(Conn* conn) {
         return;
     }
 
+    // with the want write optimization in the handle_read we need to be sure about the write
+    if (rv < 0 && errno == EAGAIN) {
+        return;
+    }
+
     buf_consume(conn->outgoing, (size_t) rv);
 
     if (conn->outgoing.size() == 0) {
         conn->want_write = false;
         conn->want_read = true;
+
     }
 
     return;
