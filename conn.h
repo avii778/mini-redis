@@ -2,7 +2,8 @@
 #define CONN_H
 
 #include <vector>      // for std::vector
-#include <cstdint>     // for uint8_t
+#include <cstdint>    
+#include "buff.h"
 
 // Represents a single client connection
 struct Conn {
@@ -12,8 +13,8 @@ struct Conn {
     bool want_write = false;          // whether we want to write to this connection
     bool want_close = false;          // whether this connection should be closed
 
-    std::vector<uint8_t> incoming;    // data received from the client
-    std::vector<uint8_t> outgoing;    // data to send to the client
+    Buffer incoming;    // data received from the client
+    Buffer outgoing;    // data to send to the client
 };
 
 #endif // CONN_H

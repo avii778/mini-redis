@@ -12,6 +12,7 @@
 #include <vector>
 #include <poll.h>
 #include "conn.h"
+#include "buff.h"
 
 const size_t K_MAX_MSG = 4096;
 
@@ -44,7 +45,7 @@ void handle_read(Conn* conn) {
     }
     
     //append this onto the incoming buff
-    buf_append(conn->incoming, buf, (size_t) rv);
+    buf_append(&conn->incoming, buf, (size_t) rv);
 
     // 3. Try to parse the accumulated buffer.
     // 4. Process the parsed message.
@@ -78,7 +79,7 @@ void handle_write(Conn* conn) {
         return;
     }
 
-    buf_consume(conn->outgoing, (size_t) rv);
+    buf_consume(&conn->outgoing, (size_t) rv);
 
     if (conn->outgoing.size() == 0) {
         conn->want_write = false;

@@ -11,6 +11,7 @@
 #include <fcntl.h>      // for fcntl(), F_SETFL, F_GETFL, O_NONBLOCK
 #include "conn.h"
 #include <cstdint>     // for uint8_t
+#include "buff.h"
 
 const size_t K_MAX_MSG = 4096;
 
@@ -68,12 +69,20 @@ void fd_set_nb(int fd) {
     fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
 }
 
-void buf_append(std::vector<uint8_t> &buf, const uint8_t *data, size_t len) {
-    buf.insert(buf.end(), data, data + len);
+int buf_append(struct Buffer *buf, const uint8_t *data, size_t len) {
+    /**
+     * Tries to append to the buffer, returns -1 if the buffer is full
+     * @returns true if sucessful, false if non-successful
+     */
+
+    if (buf->data_end + len > buf->buffer_end) {return -1;}
+    memcpy(buf->data_end, data, len);
+    buf->data_end += len;
+    return 0;
 }
 
-void buf_consume(std::vector<uint8_t> &buf, size_t len) {
-    buf.erase(buf.begin(), buf.begin() + len);
+void buf_consume(struct Buffer *buf, size_t len) {
+    buf->data_begin += len;
 }
 
 bool try_one_request(Conn *conn) {
@@ -98,13 +107,13 @@ bool try_one_request(Conn *conn) {
     if (conn->incoming.size() < 4 + length) return false;
 
     // basically just responding with what they sent
-    const uint8_t *request = &conn->incoming[4];
+    const uint8_t *request = conn->incoming.data() + 4;
     // otherwise handle the message
-    buf_append(conn->outgoing, (const uint8_t *)&length, 4);
-    buf_append(conn->outgoing, request, length);
+    int r = buf_append(&conn->outgoing, (const uint8_t *)&length, 4);
+    buf_append(&conn->outgoing, request, length);
 
     // 5. Remove the message from `Conn::incoming`.
-    buf_consume(conn->incoming, 4 + length);
+    buf_consume(&conn->incoming, 4 + length);
 
     return true;
 } 

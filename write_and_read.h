@@ -4,6 +4,7 @@
 #include <stdint.h>  // for int32_t
 #include <vector>
 #include "conn.h"
+#include "buff.h"
 
 /**
  * @brief Reads exactly 'length' bytes from a connected socket.
@@ -46,8 +47,8 @@ void fd_set_nb(int fd);
 
 bool try_one_request(Conn *conn);
 
-void buf_append(std::vector<uint8_t> &buf, const uint8_t *data, size_t len);
+void buf_append(Buffer *buf, const uint8_t *data, size_t len);
 
-void buf_consume(std::vector<uint8_t> &buf, size_t len);
+void buf_consume(Buffer *buf, size_t len);
 
 #endif // NET_UTILS_H
