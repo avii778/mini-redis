@@ -36,7 +36,7 @@ Conn* handle_accept(int fd) {
 
 void handle_read(Conn* conn) {
     // do a non-blocking read
-    uint8_t buf[64 * 1024];
+    uint8_t buf[4096];
     ssize_t rv = read(conn->fd, buf, sizeof(buf));
 
     if (rv <= 0) {  // handle IO error (rv < 0) or EOF (rv == 0)

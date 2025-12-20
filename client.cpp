@@ -79,19 +79,23 @@ int main() {
         "hello", "world", "std::string(k_max_msg, 'z')", "pipelining", "test", 
     };
 
+
+
     for (const std::string &s : query_list) {
-        int32_t err = send_req(fd, s.data(), s.size());
-        if (err) {
-            goto L_DONE;
+    int32_t err = send_req(fd, s.data(), s.size());
+    if (err) {            
+        goto L_DONE;
         }
     }
 
     for (size_t i = 0; i < query_list.size(); ++i) {
         int32_t err = read_res(fd);
         if (err) {
-            goto L_DONE;
+             goto L_DONE;
         }
     }
+    
+    
 
     L_DONE:
         close(fd);

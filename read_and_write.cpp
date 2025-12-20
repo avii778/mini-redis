@@ -12,8 +12,67 @@
 #include "conn.h"
 #include <cstdint>     // for uint8_t
 #include "buff.h"
+#include <vector>
+#include <string>
 
 const size_t K_MAX_MSG = 4096;
+
+bool read_str(std::string& str, const uint32_t* src, uint32_t *curr, const uint32_t length, const uint32_t* src_end) {
+
+    if (src + *curr + length > src_end) {
+        return false;
+    }
+    
+    str.assign(src + *curr, src + *curr + length);
+    *curr += 4;
+    return true;
+}
+
+bool read_u32(uint32_t* dest, const uint32_t* src, const uint32_t length, const uint32_t ptr) {
+    // returns true on success, false otherwise
+
+    if (length - ptr < 4) {
+        return false; 
+    }
+
+    memcpy(dest, src + ptr, 4);
+    return true;
+}
+
+int32_t parse_req(const uint32_t* b, uint32_t length, std::vector<std::string> &cmd){
+
+    const uint32_t *end = b + length;
+    uint32_t nstr = 0;
+    uint32_t curr_ptr = 0;
+
+
+    if (!read_u32(&nstr, b, length, curr_ptr)) {
+        return -1;
+    }
+
+    curr_ptr += 4;
+    
+    while (cmd.size() < nstr) {
+        
+        uint32_t len;
+
+        if (!read_u32(&len, b, length, curr_ptr)) {
+            return -1;
+        }
+
+        curr_ptr += 4;
+        std::string str;
+
+        if (!read_str(str, b, &curr_ptr, len, end)) {
+            return -1;
+        }
+
+        cmd.push_back(str);
+    }
+
+    return 0;
+
+}
 
 int32_t read_full(int connfd, char *rbuf, int length) {
 
@@ -69,7 +128,7 @@ void fd_set_nb(int fd) {
     fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
 }
 
-int buf_append(struct Buffer *buf, const uint8_t *data, size_t len) {
+int buf_append(struct Buffer *buf, const uint32_t *data, size_t len) {
     /**
      * Tries to append to the buffer, returns -1 if the buffer is full
      * @returns true if sucessful, false if non-successful
@@ -87,7 +146,7 @@ void buf_consume(struct Buffer *buf, size_t len) {
 
 bool try_one_request(Conn *conn) {
     /**
-     * Tries to parse the one request within conn incoming.
+     * Tries to parse the one request within conn incoming, and will parse the command as well as trying to create the response data.
      * @returns true if sucessful, false if non-successful
      */
 
@@ -106,10 +165,17 @@ bool try_one_request(Conn *conn) {
 
     if (conn->incoming.size() < 4 + length) return false;
 
+    std::vector<std::string> cmd;
+
+    if (parse_req(conn->incoming.data(), length, cmd) < 0) {
+        conn->want_close = true;
+        return false;
+    }
+
     // basically just responding with what they sent
-    const uint8_t *request = conn->incoming.data() + 4;
+    const uint32_t *request = conn->incoming.data() + 4;
     // otherwise handle the message
-    int r = buf_append(&conn->outgoing, (const uint8_t *)&length, 4);
+    int r = buf_append(&conn->outgoing, (const uint32_t *)&length, 4);
     buf_append(&conn->outgoing, request, length);
 
     // 5. Remove the message from `Conn::incoming`.

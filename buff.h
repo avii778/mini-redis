@@ -7,21 +7,21 @@
 struct Buffer {
     // non copyable
 
-    uint8_t *buffer_begin;
-    uint8_t *buffer_end;
-    uint8_t *data_begin;
-    uint8_t *data_end;
+    uint32_t *buffer_begin;
+    uint32_t *buffer_end;
+    uint32_t *data_begin;
+    uint32_t *data_end;
 
     int size() {
         return data_end - data_begin;
     }
 
-    uint8_t* data() {
+    uint32_t* data() {
         return data_begin;
     }
 
     Buffer() {
-        buffer_begin = (uint8_t *)malloc(4096);
+        buffer_begin = (uint32_t *)malloc(4096);
         buffer_end = buffer_begin + 4096;
         data_begin = buffer_begin;
         data_end = buffer_begin;
