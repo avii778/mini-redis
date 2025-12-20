@@ -14,63 +14,91 @@
 #include "buff.h"
 #include <vector>
 #include <string>
+#include "response.h"
+#include <map>
 
 const size_t K_MAX_MSG = 4096;
+// placeholder; implemented later
+static std::map<std::string, std::string> g_data;
 
-bool read_str(std::string& str, const uint32_t* src, uint32_t *curr, const uint32_t length, const uint32_t* src_end) {
+static bool read_u32(const uint8_t *&cur, const uint8_t *end, uint32_t &out) {
 
-    if (src + *curr + length > src_end) {
-        return false;
-    }
-    
-    str.assign(src + *curr, src + *curr + length);
-    *curr += 4;
+    if (cur + 4 > end) return false;
+
+    memcpy(&out, cur, 4);
+    cur += 4;
     return true;
 }
 
-bool read_u32(uint32_t* dest, const uint32_t* src, const uint32_t length, const uint32_t ptr) {
-    // returns true on success, false otherwise
+static bool read_str(const uint8_t *&cur, const uint8_t *end, size_t n, std::string &out) {
 
-    if (length - ptr < 4) {
-        return false; 
-    }
+    if (cur + n > end) return false;
 
-    memcpy(dest, src + ptr, 4);
+    out.assign(reinterpret_cast<const char*>(cur), n);
+    cur += n;
+
     return true;
+
 }
 
-int32_t parse_req(const uint32_t* b, uint32_t length, std::vector<std::string> &cmd){
+int32_t parse_req(const uint8_t *data, size_t size, std::vector<std::string> &cmd) {
 
-    const uint32_t *end = b + length;
+    const uint8_t *cur = data;
+    const uint8_t *end = data + size;
+
     uint32_t nstr = 0;
-    uint32_t curr_ptr = 0;
+    if (!read_u32(cur, end, nstr)) return -1;
 
+    cmd.clear();
+    cmd.reserve(nstr);
 
-    if (!read_u32(&nstr, b, length, curr_ptr)) {
-        return -1;
-    }
-
-    curr_ptr += 4;
-    
     while (cmd.size() < nstr) {
-        
-        uint32_t len;
+        uint32_t len = 0;
+        if (!read_u32(cur, end, len)) return -1;
 
-        if (!read_u32(&len, b, length, curr_ptr)) {
-            return -1;
-        }
-
-        curr_ptr += 4;
-        std::string str;
-
-        if (!read_str(str, b, &curr_ptr, len, end)) {
-            return -1;
-        }
-
-        cmd.push_back(str);
+        cmd.emplace_back();
+        if (!read_str(cur, end, len, cmd.back())) return -1;
     }
 
+    if (cur != end) return -1; // trailing garbage
     return 0;
+
+}
+
+void do_request(std::vector<std::string> &cmd, Response& out) {
+
+    if (cmd.size() == 2 && cmd[0] == "get") {
+        auto it = g_data.find(cmd[1]);
+
+        if (it == g_data.end()) {
+            out.status = 1;    // not found
+            return;
+        }
+
+        const std::string &val = it->second;
+        out.data.assign(val.begin(), val.end());
+        out.status = 0;
+
+    } else if (cmd.size() == 3 && cmd[0] == "set") {
+        g_data[cmd[1]].swap(cmd[2]);
+        out.status = 0;
+
+    } else if (cmd.size() == 2 && cmd[0] == "del") {
+        g_data.erase(cmd[1]);
+        out.status = 0;
+    } else {
+        out.status = 2;       // unrecognized command
+    }
+
+
+}
+
+void make_response(Response& resp, Buffer& out) {
+    // need to serialize
+    uint32_t resp_len = 4 + (uint32_t) resp.data.size();
+    buf_append(&out, (const uint8_t *)&resp_len, 4);
+    buf_append(&out, (const uint8_t *)&resp.status, 4);
+    buf_append(&out, resp.data.data(), resp.data.size());
 
 }
 
@@ -128,7 +156,7 @@ void fd_set_nb(int fd) {
     fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
 }
 
-int buf_append(struct Buffer *buf, const uint32_t *data, size_t len) {
+int buf_append(struct Buffer *buf, const uint8_t *data, size_t len) {
     /**
      * Tries to append to the buffer, returns -1 if the buffer is full
      * @returns true if sucessful, false if non-successful
@@ -142,6 +170,12 @@ int buf_append(struct Buffer *buf, const uint32_t *data, size_t len) {
 
 void buf_consume(struct Buffer *buf, size_t len) {
     buf->data_begin += len;
+
+    if (buf->data_begin == buf->data_end) {
+        buf->data_begin = buf->buffer_begin;
+    }
+
+    return;
 }
 
 bool try_one_request(Conn *conn) {
@@ -167,15 +201,19 @@ bool try_one_request(Conn *conn) {
 
     std::vector<std::string> cmd;
 
-    if (parse_req(conn->incoming.data(), length, cmd) < 0) {
+    if (parse_req(conn->incoming.data() + 4, length, cmd) < 0) {
         conn->want_close = true;
         return false;
     }
+    
+    Response resp;
+    do_request(cmd, resp);
+    make_response(resp, conn->outgoing);
 
     // basically just responding with what they sent
-    const uint32_t *request = conn->incoming.data() + 4;
+    const uint8_t *request = conn->incoming.data() + 4;
     // otherwise handle the message
-    int r = buf_append(&conn->outgoing, (const uint32_t *)&length, 4);
+    int r = buf_append(&conn->outgoing, reinterpret_cast<const uint8_t*>(&length), 4);
     buf_append(&conn->outgoing, request, length);
 
     // 5. Remove the message from `Conn::incoming`.
