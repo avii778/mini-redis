@@ -65,29 +65,50 @@ int32_t parse_req(const uint8_t *data, size_t size, std::vector<std::string> &cm
 
 }
 
-void do_request(std::vector<std::string> &cmd, Response& out) {
+void do_request(std::vector<std::string> &cmd, Response& out, Buffer& outgoing) {
 
     if (cmd.size() == 2 && cmd[0] == "get") {
         auto it = g_data.find(cmd[1]);
 
         if (it == g_data.end()) {
-            out.status = 1;    // not found
+            out.status = 1; // not found
+            const uint32_t status = 1;
+            const uint32_t resp_len = 4;
+            buf_append(&outgoing, reinterpret_cast<const uint8_t*>(&resp_len), 4); // length header
+            buf_append(&outgoing, reinterpret_cast<const uint8_t*>(&status), 4); //data (status 1)
             return;
         }
 
-        const std::string &val = it->second;
-        out.data.assign(val.begin(), val.end());
         out.status = 0;
+        const std::string &val = it->second;
+        const uint32_t& status = out.status; // this is safer
+        uint32_t resp_len = 4 + (uint32_t) val.size();
+        buf_append(&outgoing, reinterpret_cast<uint8_t*>(&resp_len), 4);
+        buf_append(&outgoing, reinterpret_cast<const uint8_t*>(&status), 4); //status
+        buf_append(&outgoing, reinterpret_cast<const uint8_t*>(val.data()), val.size());
 
     } else if (cmd.size() == 3 && cmd[0] == "set") {
+        
         g_data[cmd[1]].swap(cmd[2]);
         out.status = 0;
+        uint32_t resp_len = 4;
+        uint32_t status = out.status;
+        buf_append(&outgoing, reinterpret_cast<const uint8_t*>(&resp_len), 4);
+        buf_append(&outgoing, reinterpret_cast<const uint8_t*>(&status), 4);
 
     } else if (cmd.size() == 2 && cmd[0] == "del") {
         g_data.erase(cmd[1]);
         out.status = 0;
+        uint32_t &status = out.status;
+        uint32_t resp_len = 4;
+        buf_append(&outgoing, reinterpret_cast<uint8_t*>(&resp_len), 4);
+        buf_append(&outgoing, reinterpret_cast<uint8_t*>(&status), 4);
     } else {
-        out.status = 2;       // unrecognized command
+        out.status = 2;    
+        uint32_t &status = out.status;
+        uint32_t resp_len = 4;
+        buf_append(&outgoing, reinterpret_cast<uint8_t*>(&resp_len), 4);
+        buf_append(&outgoing, reinterpret_cast<uint8_t*>(&status), 4);   // unrecognized command
     }
 
 
@@ -99,7 +120,6 @@ void make_response(Response& resp, Buffer& out) {
     buf_append(&out, (const uint8_t *)&resp_len, 4);
     buf_append(&out, (const uint8_t *)&resp.status, 4);
     buf_append(&out, resp.data.data(), resp.data.size());
-
 }
 
 int32_t read_full(int connfd, char *rbuf, int length) {
@@ -206,15 +226,8 @@ bool try_one_request(Conn *conn) {
         return false;
     }
     
-    Response resp;
-    do_request(cmd, resp);
-    make_response(resp, conn->outgoing);
-
-    // basically just responding with what they sent
-    const uint8_t *request = conn->incoming.data() + 4;
-    // otherwise handle the message
-    int r = buf_append(&conn->outgoing, reinterpret_cast<const uint8_t*>(&length), 4);
-    buf_append(&conn->outgoing, request, length);
+    Response resp; // we may need it later
+    do_request(cmd, resp, conn->outgoing);
 
     // 5. Remove the message from `Conn::incoming`.
     buf_consume(&conn->incoming, 4 + length);
