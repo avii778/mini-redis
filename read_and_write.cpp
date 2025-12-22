@@ -88,7 +88,7 @@ void do_request(std::vector<std::string> &cmd, Response& out, Buffer& outgoing) 
         buf_append(&outgoing, reinterpret_cast<const uint8_t*>(val.data()), val.size());
 
     } else if (cmd.size() == 3 && cmd[0] == "set") {
-        
+
         g_data[cmd[1]].swap(cmd[2]);
         out.status = 0;
         uint32_t resp_len = 4;
@@ -167,8 +167,7 @@ void msg(const char* message) {
 
 void die(const char* message) { 
 
-    perror(message);
-    exit(1);
+    perror(message); exit(1);
 
 }
 
