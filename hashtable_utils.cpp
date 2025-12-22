@@ -24,13 +24,13 @@ static void h_insert(HTab *htab, HNode *node) {
 
 static HNode **h_lookup(HTab *htab, HNode *key, bool (*eq)(HNode *, HNode *)) {
 
-    
+    // the real magic of this function is the **. it always makes it so that it points to the prev nodes pointer to the part, makes deleting and inserting trivial
     if (!htab->tab) {
         return nullptr;
     }
 
     size_t pos = key->hcode & htab->mask;
-    HNode** ll = &htab->tab[pos];
+    HNode** ll = &htab->tab[pos]; // this is the linked list we must iterate on
 
     while (*ll) {
 

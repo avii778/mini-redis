@@ -40,6 +40,7 @@ static void do_get(std::vector<std::string> &cmd, Response &out) {
 
     const std::string &val = container_of(candidate, Entry, node)->val;
     assert(val.size() <= k_max_msg);
+    out.status = 0;
     out.data.assign(val.begin(), val.end());
     return;
 }
@@ -48,5 +49,24 @@ static void do_set(std::vector<std::string> &cmd, Response &out) {
 
     Entry key;
     key.key.swap(cmd[1]);
+    key.node.hcode = str_hash((uint8_t *)key.key.data(), key.key.size());
+    
+    HNode *candidate = hm_lookup(&g_data.db, &key.node, &entry_eq); // room for optimization
+    if (candidate) {hm_delete(&g_data.db, candidate, &entry_eq);}
+    
     key.val.swap(cmd[2]);
+    hm_insert(&g_data.db, &key.node);
+    out.status = 1;
+    return;
+}
+
+static void do_delete(std::vector<std::string> &cmd, Response &out) {
+
+    Entry key;
+    key.key.swap(cmd[1]);
+    key.node.hcode = str_hash((uint8_t *)key.key.data(), key.key.size());
+
+    hm_delete(&g_data.db, &key.node, &entry_eq);
+
+
 }
