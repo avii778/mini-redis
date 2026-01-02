@@ -45,7 +45,8 @@ static HNode **h_lookup(HTab *htab, HNode *key, bool (*eq)(HNode *, HNode *)) {
 }
 
 static HNode *h_delete(HTab *htab, HNode **from) {
-
+    // little pointer indirection, since we provide this with lookup, this will point to the previous node's next field, which we then modify
+    // by derefrencing and changing it to be the derefrenced next field next field, a bit of a mouthful
     HNode *node = *from;    
     *from = node->next;
     htab->size--;
@@ -101,11 +102,11 @@ HNode *hm_lookup(HMap *hmap, HNode *key, bool (*eq)(HNode *, HNode *)) {
 HNode *hm_delete(HMap *hmap, HNode *key, bool (*eq)(HNode *, HNode *)) {
 
     if (HNode **from = h_lookup(&hmap->newer, key, eq)) {
-        h_delete(&hmap->newer, from);
+        return h_delete(&hmap->newer, from);
     }
 
     if (HNode **from = h_lookup(&hmap->older, key, eq)) {
-        h_delete(&hmap->older, from);
+        return h_delete(&hmap->older, from);
     }
 
     return nullptr;

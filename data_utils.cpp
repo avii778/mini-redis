@@ -9,8 +9,7 @@ static int k_max_msg = 4096;
 
 #define container_of(ptr, type, member) \
     reinterpret_cast<type*>( reinterpret_cast<std::uintptr_t>(ptr) - offsetof(type, member) )
-
-
+    
 static bool entry_eq(HNode *lhs, HNode *rhs) {
     struct Entry *le = container_of(lhs, struct Entry, node);
     struct Entry *re = container_of(rhs, struct Entry, node);
@@ -47,17 +46,18 @@ static void do_get(std::vector<std::string> &cmd, Response &out) {
 
 static void do_set(std::vector<std::string> &cmd, Response &out) {
 
-    Entry key;
-    key.key.swap(cmd[1]);
-    key.node.hcode = str_hash((uint8_t *)key.key.data(), key.key.size());
-    
-    HNode *candidate = hm_lookup(&g_data.db, &key.node, &entry_eq); // room for optimization
-    if (candidate) {hm_delete(&g_data.db, candidate, &entry_eq);}
-    
-    key.val.swap(cmd[2]);
-    hm_insert(&g_data.db, &key.node);
-    out.status = 1;
-    return;
+    Entry *key = new Entry{}; //allocation into the heap so it doesn't dangle
+    key->key = cmd[1];
+    key->val = cmd[2];
+    key->node.hcode = str_hash((uint8_t *)key->key.data(), key->key.size());
+
+    if (HNode *n = hm_delete(&g_data.db, &key->node, &entry_eq)) {
+        Entry *e = container_of(n, Entry, node);
+        delete e;
+    }
+
+    hm_insert(&g_data.db, &key->node);
+    out.status = 0;
 }
 
 static void do_delete(std::vector<std::string> &cmd, Response &out) {
@@ -66,7 +66,11 @@ static void do_delete(std::vector<std::string> &cmd, Response &out) {
     key.key.swap(cmd[1]);
     key.node.hcode = str_hash((uint8_t *)key.key.data(), key.key.size());
 
-    hm_delete(&g_data.db, &key.node, &entry_eq);
+    HNode *n = hm_delete(&g_data.db, &key.node, &entry_eq);
+    if (n) {
+        Entry *e = container_of(n, Entry, node);
+        delete e;
+    }
 
-
+    out.status = n ? 0 : 1;
 }
