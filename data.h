@@ -16,5 +16,8 @@ struct Entry {
     std::string val;
 };
 
-static void do_get(std::vector<std::string> &cmd, Response &out);
+void do_get(std::vector<std::string> &cmd, Buffer &out);
+void do_set(std::vector<std::string> &cmd, Buffer &out);
+void do_delete(std::vector<std::string> &cmd, Buffer &out);
+
 #endif

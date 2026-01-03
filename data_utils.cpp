@@ -4,6 +4,9 @@
 #include <assert.h>
 #include <cstddef>
 #include <type_traits>
+#include "buff.h"
+#include "serialization.h"
+#include "write_and_read.h"
 
 static int k_max_msg = 4096;
 
@@ -22,7 +25,7 @@ static uint64_t str_hash(uint8_t *data, size_t size) {
     return (uint64_t) 1;
 }
 
-static void do_get(std::vector<std::string> &cmd, Response &out) {
+void do_get(std::vector<std::string> &cmd, Buffer &out) {
 
     // will fill out the response using the cmds using the g_data
 
@@ -33,18 +36,15 @@ static void do_get(std::vector<std::string> &cmd, Response &out) {
     HNode *candidate = hm_lookup(&g_data.db, &key.node, &entry_eq); // placeholder for now
     
     if (!candidate) {
-        out.status = 1;
-        return;
+        return out_int(out, 1);
     }
 
     const std::string &val = container_of(candidate, Entry, node)->val;
     assert(val.size() <= k_max_msg);
-    out.status = 0;
-    out.data.assign(val.begin(), val.end());
-    return;
+    return out_str(out, val.data(), val.size());
 }
 
-static void do_set(std::vector<std::string> &cmd, Response &out) {
+void do_set(std::vector<std::string> &cmd, Buffer &out) {
 
     Entry *key = new Entry{}; //allocation into the heap so it doesn't dangle
     key->key = cmd[1];
@@ -57,10 +57,10 @@ static void do_set(std::vector<std::string> &cmd, Response &out) {
     }
 
     hm_insert(&g_data.db, &key->node);
-    out.status = 0;
+    return out_int(out, 1);
 }
 
-static void do_delete(std::vector<std::string> &cmd, Response &out) {
+void do_delete(std::vector<std::string> &cmd, Buffer &out) {
 
     Entry key;
     key.key.swap(cmd[1]);
@@ -72,5 +72,35 @@ static void do_delete(std::vector<std::string> &cmd, Response &out) {
         delete e;
     }
 
-    out.status = n ? 0 : 1;
+    return n ? out_int(out, 0) : out_int(out, 1);
+}
+
+static void out_nil(Buffer &out) {
+
+    uint8_t tag = TAG_NIL;
+    buf_append(&out, &tag, 1);
+}
+
+static void out_str(Buffer &out, const char *str, size_t size) {
+
+    uint8_t tag = TAG_STR;
+    uint32_t size_addr = size;
+    buf_append(&out, &tag, 1);
+    buf_append(&out, (uint8_t *) &size_addr , 4);
+    buf_append(&out, (uint8_t *) str, size);
+}
+
+static void out_int(Buffer &out, int64_t lel) {
+    uint8_t tag = TAG_INT;
+    uint32_t size = 8;
+    buf_append(&out, &tag, 1);
+    buf_append(&out, (uint8_t *) &size, sizeof(size));
+    buf_append(&out, (uint8_t *) &lel, 8);
+}
+
+static void out_arr(Buffer &out, uint32_t n) {
+    // lol 
+    uint8_t tag = TAG_ARR;
+    buf_append(&out, &tag, 1);
+    buf_append(&out, (uint8_t *) &n, 4);    
 }

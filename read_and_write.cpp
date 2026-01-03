@@ -16,10 +16,10 @@
 #include <string>
 #include "response.h"
 #include <map>
+#include "data.h"
 
 const size_t K_MAX_MSG = 4096;
 // placeholder; implemented later
-static std::map<std::string, std::string> g_data;
 
 static bool read_u32(const uint8_t *&cur, const uint8_t *end, uint32_t &out) {
 
@@ -68,42 +68,17 @@ int32_t parse_req(const uint8_t *data, size_t size, std::vector<std::string> &cm
 void do_request(std::vector<std::string> &cmd, Response& out, Buffer& outgoing) {
 
     if (cmd.size() == 2 && cmd[0] == "get") {
-        auto it = g_data.find(cmd[1]);
-
-        if (it == g_data.end()) {
-            out.status = 1; // not found
-            const uint32_t status = 1;
-            const uint32_t resp_len = 4;
-            buf_append(&outgoing, reinterpret_cast<const uint8_t*>(&resp_len), 4); // length header
-            buf_append(&outgoing, reinterpret_cast<const uint8_t*>(&status), 4); //data (status 1)
-            return;
-        }
-
-        out.status = 0;
-        const std::string &val = it->second;
-        const uint32_t& status = out.status; // this is safer
-        uint32_t resp_len = 4 + (uint32_t) val.size();
-        buf_append(&outgoing, reinterpret_cast<uint8_t*>(&resp_len), 4);
-        buf_append(&outgoing, reinterpret_cast<const uint8_t*>(&status), 4); //status
-        buf_append(&outgoing, reinterpret_cast<const uint8_t*>(val.data()), val.size());
+        do_get(cmd, outgoing);
 
     } else if (cmd.size() == 3 && cmd[0] == "set") {
 
-        g_data[cmd[1]].swap(cmd[2]);
-        out.status = 0;
-        uint32_t resp_len = 4;
-        uint32_t status = out.status;
-        buf_append(&outgoing, reinterpret_cast<const uint8_t*>(&resp_len), 4);
-        buf_append(&outgoing, reinterpret_cast<const uint8_t*>(&status), 4);
+        do_set(cmd, outgoing);
 
     } else if (cmd.size() == 2 && cmd[0] == "del") {
-        g_data.erase(cmd[1]);
-        out.status = 0;
-        uint32_t &status = out.status;
-        uint32_t resp_len = 4;
-        buf_append(&outgoing, reinterpret_cast<uint8_t*>(&resp_len), 4);
-        buf_append(&outgoing, reinterpret_cast<uint8_t*>(&status), 4);
+        do_delete(cmd, outgoing);
+
     } else {
+        
         out.status = 2;    
         uint32_t &status = out.status;
         uint32_t resp_len = 4;
