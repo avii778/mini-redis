@@ -30,6 +30,36 @@ static bool read_u32(const uint8_t *&cur, const uint8_t *end, uint32_t &out) {
     return true;
 }
 
+static void out_err(Buffer &out, uint8_t err, std::string msg) {
+
+    const uint32_t size = 1 + msg.size();
+    buf_append(&out, (uint8_t *)&size, 4);
+    buf_append(&out, &err, 1);
+    buf_append(&out, (uint8_t *) msg.data(), msg.size());
+}
+
+// reserve 4 bytes for response header 
+static void response_begin(Buffer &out, size_t *header) {
+    uint32_t z = 0;
+    *header = out.size(); // so we know where to put the header lmfao
+    buf_append(&out, (uint8_t * ) &z, 4);
+}
+
+static size_t response_len(Buffer &out, size_t header) {
+
+    return out.size() - header - 4;
+}
+
+static void response_end(Buffer &out, size_t header) {
+
+    size_t s = response_len(out, header);
+
+    if (s > K_MAX_MSG) {
+        out.data_end = out.data_begin + header + 4; // some room for the header would be nice
+        out_err(out, 1, "msg too big");
+    }
+    ;
+}
 static bool read_str(const uint8_t *&cur, const uint8_t *end, size_t n, std::string &out) {
 
     if (cur + n > end) return false;
@@ -78,14 +108,13 @@ void do_request(std::vector<std::string> &cmd, Response& out, Buffer& outgoing) 
         do_delete(cmd, outgoing);
 
     } else {
-        
-        out.status = 2;    
+    
+        out.status = 2;
         uint32_t &status = out.status;
         uint32_t resp_len = 4;
         buf_append(&outgoing, reinterpret_cast<uint8_t*>(&resp_len), 4);
         buf_append(&outgoing, reinterpret_cast<uint8_t*>(&status), 4);   // unrecognized command
     }
-
 
 }
 
