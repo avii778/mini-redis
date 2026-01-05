@@ -58,6 +58,7 @@ static void response_end(Buffer &out, size_t header) {
         out.data_end = out.data_begin + header + 4; // some room for the header would be nice
         out_err(out, 1, "msg too big");
     }
+    // FINISH DIS TMRW
     ;
 }
 static bool read_str(const uint8_t *&cur, const uint8_t *end, size_t n, std::string &out) {

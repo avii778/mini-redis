@@ -16,12 +16,6 @@ struct Buffer {
         return data_end - data_begin;
     }
 
-    // this is lowk scary
-    void resize(size_t size) {
-
-        data_end = data_begin + size;
-    }
-
     uint8_t* data() {
         return data_begin;
     }
