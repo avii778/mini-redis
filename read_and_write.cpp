@@ -57,10 +57,13 @@ static void response_end(Buffer &out, size_t header) {
     if (s > K_MAX_MSG) {
         out.data_end = out.data_begin + header + 4; // some room for the header would be nice
         out_err(out, 1, "msg too big");
+        s = response_len(out, header);
     }
     // FINISH DIS TMRW
-    ;
+    uint32_t len = (uint32_t) s;
+    memcpy(out.data_begin + header , &len, 4);
 }
+
 static bool read_str(const uint8_t *&cur, const uint8_t *end, size_t n, std::string &out) {
 
     if (cur + n > end) return false;
